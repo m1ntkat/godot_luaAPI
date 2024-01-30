@@ -114,6 +114,7 @@ is not a normal C# `new Object()` creation style.
 
 ```csharp
 using Godot;
+using Godot.Collections;
 
 public partial class Node2D : Godot.Node2D {
 	private LuaApi lua = new LuaApi();
@@ -127,7 +128,7 @@ public partial class Node2D : Godot.Node2D {
 
 		// All builtin libraries are available to bind with. Use OS and IO at your own risk.
 		// BindLibraries requires a "Godot Array" so, let's build one.
-		Godot.Collections.Array libraries = new() {
+		Array<string> libraries = new Array<string> {
 			"base",  // Base Lua commands
 			"table", // Table functionality.
 			"string" // String Specific functionality.
@@ -143,55 +144,59 @@ public partial class Node2D : Godot.Node2D {
 		lua.PushVariant("message", "Hello lua!");
 
 		// Use .DoString() to execute our Lua code.
-		LuaError error = lua.DoString("cs_print(message)");
-		// Check for errors, and if there are any, Print them to the Godot Console.
-		if (error != null && error.Message != "") {
-			GD.Print("An error occurred calling DoString.");
-			GD.Print("ERROR %d: %s", error.Type, error.Message);
-		}
-
-		error = lua.DoString(@"
-                                  for i=1,10,1 do
-                                  	cs_print(message)
-                                  end
-                                  function get_message()
-                                  	return ""This message was sent from 'get_message()'""
-                                  end
-                                  ");
+		Variant result = lua.DoString("cs_print(message)");
 
 		// Check for errors, and if there are any, Print them to the Godot Console.
-		if (error != null && error.Message != "") {
-			GD.Print("An error occurred calling DoString.");
-			GD.Print("ERROR %d: %s", error.Type, error.Message);
-		}
-		
-		// Let's pull our lua function from the lua code.
-		var val = lua.PullVariant("get_message");
-		// Check to see if it returned an error, or a value.
-		if (val.GetType() == typeof(LuaError)) {
-			GD.Print("ERROR %d: %s", error.Type, error.Message);
-			return;
-		}
+		if (result is LuaError)
+		{
+			LuaError error = (LuaError)result;
+			if (error != null && error.Message != "")
+			{
+				GD.Print("An error occurred calling DoString.");
+				GD.Print("ERROR {0}: {1}", error.Type, error.Message);
+			}
 
-		// To use LuaFunctionRefs we need to change the system to use it. We do this by changing
-		// the .UseCallables flag to 'false'. (If your LuaFunctionRef variable is null, you didn't
-		// set this flag. 
-		lua.UseCallables = false;
+			result = lua.DoString(@"
+								  for i=1,10,1 do
+									cs_print(message)
+								  end
+								  function get_message()
+									return ""This message was sent from 'get_message()'""
+								  end
+								  ");
 
-		// We create a LuaFunctionRef as our reference to the Lua code's function,
-		// then we use .As<LuaFunctionRef>() to cast it as a LuaFunctionRef.
-		LuaFunctionRef get_message = val.As<LuaFunctionRef>();
-		if (get_message == null) {
-			GD.Print("ERROR: get_message is null.");
-			return;
+			// Check for errors, and if there are any, Print them to the Godot Console.
+			if (error != null && error.Message != "")
+			{
+				GD.Print("An error occurred calling DoString.");
+				GD.Print("ERROR %d: %s", error.Type, error.Message);
+			}
+
+			// Let's pull our lua function from the lua code.
+			var val = lua.PullVariant("get_message");
+			// Check to see if it returned an error, or a value.
+			if (val.GetType() == typeof(LuaError))
+			{
+				GD.Print("ERROR %d: %s", error.Type, error.Message);
+				return;
+			}
+
+			// We create a LuaFunctionRef as our reference to the Lua code's function,
+			// then we use .As<LuaFunctionRef>() to cast it as a LuaFunctionRef.
+			LuaFunctionRef get_message = val.As<LuaFunctionRef>();
+			if (get_message == null)
+			{
+				GD.Print("ERROR: get_message is null.");
+				return;
+			}
+
+			// Calling Lua (code) functions requires a Godot.Collections.Array as the container
+			// for the parameters passed in. 
+			Godot.Collections.Array Params = new();
+			// We use .Invoke to actually call the lua function within the Lua State. 
+			// And, finally, we log the output of the function to Godot Output Console.
+			GD.Print(get_message.Invoke(Params));
 		}
-
-		// Calling Lua (code) functions requires a Godot.Collections.Array as the container
-		// for the parameters passed in. 
-		Godot.Collections.Array Params = new();
-		// We use .Invoke to actually call the lua function within the Lua State. 
-		// And, finally, we log the output of the function to Godot Output Console.
-		GD.Print(get_message.Invoke(Params));
 
 	}
 }
